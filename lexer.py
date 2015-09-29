@@ -2,12 +2,41 @@
 # analyzer - it converts text code characters
 # into different "tokens" and fetches them.
 
-class Enum(set):
-    def __getattr__(self, name):
-        if name in self:
-            return name
-        raise AttributeError
-TokenTypes = Enum(['INT', 'PLUS', 'END'])
+# TODO: Error Handling
+
+import re as regex
+import copy
+
+ASSIGN = 'OPERATOR_ASSIGN' # assignment operator
+INTEROP = 'OPERATOR_INTERMEDIATE' # not an assignment; any intermediate calculation or operation
+FIXED_VALUE = 'FIXED_VALUE' # cannot assign FIVAL to anything
+VARIABLE_VALUE = 'VARIABLE_VALUE' # can assign VARVAL to anything
+LINETERMINATOR = 'LINETERMINATOR' # terminates a line of code
+PROGRAMTERMINATOR = 'PROGRAMTERMINATOR' # terminates the program
+COMMAND = 'COMMAND'
+PARAMETERDELIMETER = 'PARAMETERDELIMETER' # a delimeter that can separate mutliple parameters to any command
+CLAUSE = 'CLAUSE'
+ARBITRARY = 'ARBITRARY'
+class TokenTypeEnum(list):
+	def __getattr__(self, name): # convenience method
+		for i, val in enumerate(self):
+			if val[0] == name:
+				return name
+		raise AttributeError
+	def label(self, name): # get the label/grouping of the token type name
+		for i, val in enumerate(self):
+			if val[0] == name:
+				return val[2]
+		raise AttributeErrors
+	def nameFromCharacter(self, char): # use regex to determine the type of token from the character
+		for i, val in enumerate(self):
+			if regex.match(val[1], char) is not None:
+				return val[0]
+		raise AttributeError
+
+	# TODO: implement separate methods from variable_value name and _actual_ value in memory, realValue
+# Token type tuple: (name, regex value, label/descriptor)
+TokenTypes = TokenTypeEnum([('INT', '[0-9]', FIXED_VALUE), ('PLUS', '[+]', INTEROP), ('MINUS', '[-]', INTEROP), ('MULTIPLY', '[*]', INTEROP), ('DIVIDE', '[/]', INTEROP), ('ASSIGN', '[=]', ASSIGN), ('SPACE', '[ ]', ARBITRARY), ('DOT', '[.]', ARBITRARY), ('NEWLINE', '[\n]', LINETERMINATOR), ('COMMA', '[,]', PARAMETERDELIMETER), ('END', None, PROGRAMTERMINATOR)])
 
 class Token: # a single "token" object
 	def __init__(self, type, value):
@@ -20,11 +49,23 @@ class Token: # a single "token" object
 	def join(self, partner): # returns a boolean if the token could join the partner
 		# we can only join in specific conditions:
 		joined = False
+		tempToken = copy.copy(self)
 		if partner.type == self.type:
 			if self.type == TokenTypes.INT:
 				self.value = self.value * 10 + partner.value
-				joined = True
+			if self.type == TokenTypes.SPACE:
+				self.value = ''.join([self.value, partner.value])
+		elif (partner.type == TokenTypes.MINUS or self.type == TokenTypes.PLUS) and (self.type == TokenTypes.MINUS or partner.type == TokenTypes.PLUS):
+			if partner.type == TokenTypes.MINUS:
+				self.type = partner.type
+				self.value = partner.value
+		if not self.value == tempToken.value or not self.type == tempToken.type:
+			joined = True
 		return joined
+
+	def realValue(self): # get the real value from a token type name, mostly useful for variable values
+		# TODO
+		return self.value 
 
 	def __repr__(self):
 		return self.__str__() # as it's unique for each type-value pair
@@ -50,8 +91,8 @@ class Lexer(object): # the lexer class
 		if not self.currentToken: # if this is the first token, do not join (infinite loop: Tn join Tn == True)
 			self.currentToken = token
 			return self.advanceCursor()
-		if token.type == TokenTypes.END: # if we are before the end, return
-			if not self.currentToken.type == TokenTypes.END: # if we still have a current token to issue, don't end yet
+		if TokenTypes.label(token.type) == PROGRAMTERMINATOR: # if we are at the end, return
+			if not TokenTypes.label(self.currentToken.type) == PROGRAMTERMINATOR: # if we still have a current token to issue, don't end yet
 				intermediateToken = self.currentToken
 				self.currentToken = token
 				return intermediateToken
@@ -65,15 +106,9 @@ class Lexer(object): # the lexer class
 			return intermediateToken # if the join was not successful, return the token as is
 
 	def tokenDataFromCharacter(self, char):
-		type = None
-		value = None
-		# evaluate type and value 
-		if char.isdigit(): # it's an integer (NOTE: has to be an integer since it's just one character)
-			type = TokenTypes.INT
+		type = TokenTypes.nameFromCharacter(char)
+		value = char
+		if type == TokenTypes.INT:
 			value = int(char)
-		else: # it's a letter
-			if char == '+':
-				type = TokenTypes.PLUS
-				value = char
 		# Use type to convert to value
 		return (type, value)

@@ -2,18 +2,16 @@
 # input code is sent for interpretation
 # and results/errors are outputted.
 
+import os
 import evaluation
 
 def main():
-    while True:
-        try:
-            text = raw_input('Psuedocode> ')
-        except EOFError:
-            break
-        if not text:
-            continue
-        eval = evaluation.Evaluater(text)
-        eval.begin()
+    with open("test.txt", "r") as codefile: # read the code file
+        text = codefile.read().strip()
+    if not text:
+        return
+    eval = evaluation.Evaluater(text) # create code evaluater
+    eval.begin() # begin interpretation
 
 if __name__ == '__main__':
     main()
