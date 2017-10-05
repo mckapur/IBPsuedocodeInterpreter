@@ -27,7 +27,7 @@ class TokenTypeEnum(list):
 		for i, val in enumerate(self):
 			if val[0] == name:
 				return val[2]
-		raise AttributeErrors
+		raise AttributeError
 	def nameFromCharacter(self, char): # use regex to determine the type of token from the character
 		for i, val in enumerate(self):
 			if regex.match(val[1], char) is not None:
